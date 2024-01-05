@@ -126,11 +126,11 @@ def train(params):
 
     for step in range(start_step, total_steps):
         is_init_stage = step < training_params.init_steps
-        print("{}/{}, init_stage: {}".format(step + 1, total_steps, is_init_stage))
+        # print("{}/{}, init_stage: {}".format(step + 1, total_steps, is_init_stage))
         loss_details = {"inference": [],
                         "inference_eval": [],
                         "policy": []}
-        u1=u0
+        u1 = u0
         # env.step()
         # env interaction and transition saving
         if collect_env_step:
@@ -189,7 +189,8 @@ def train(params):
                     action = action_policy.act(obs)
 #####################################################################################################################
             next_obs, env_reward, done, info, u2 = env.step(action, u1)
-            # print("reward!!!!!!!!!!!!:", u2)
+            print("reward!!!!!!!!!!!!:", env_reward)
+            print("U2!!!!!!!!!!!!:", u2)
             if is_task_learning and not is_vecenv:
                 success = success or info["success"]
 
@@ -272,7 +273,7 @@ def train(params):
                 inference.save(os.path.join(model_dir, "inference_{}".format(step + 1)))
             if policy_gradient_steps > 0:
                 policy.save(os.path.join(model_dir, "policy_{}".format(step + 1)))
-        u0=u2
+        u0 = u2
 
 if __name__ == "__main__":
     params = TrainingParams(training_params_fname="policy_params.json", train=True)

@@ -173,3 +173,22 @@ def get_colors_and_weights(cmap='Set1', num_colors=9, observed=True, mode='Train
         colors, weights = unobserved_colors(cmap, num_colors, mode, new_colors)
 
     return colors, weights
+
+
+
+def visualize_colormap(cmap_name, num_colors, filename="colormap.png"):
+    cmap = plt.get_cmap(cmap_name)
+    colors = cmap(np.linspace(0, 1, num_colors))
+
+    plt.figure(figsize=(10, 1))
+    plt.imshow([colors], extent=[0, num_colors, 0, 1])
+
+    for i, color in enumerate(colors):
+        plt.text(i + 0.5, 0.5, str(i), ha='center', va='center', color='white' if i < num_colors / 2 else 'black')
+    
+    plt.title(f"Color indices in {cmap_name} colormap")
+    plt.axis('off')
+    plt.savefig(filename)
+    plt.close()
+
+visualize_colormap('Set1', 9)

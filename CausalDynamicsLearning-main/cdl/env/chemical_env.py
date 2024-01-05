@@ -99,6 +99,8 @@ graphs = {
     'bidiag13': '{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}->{10-11}->{11-12}',
     'bidiag14': '{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}->{10-11}->{11-12}->{12-13}',
     'bidiag15': '{0-1}->{1-2}->{2-3}->{3-4}->{4-5}->{5-6}->{6-7}->{7-8}->{8-9}->{9-10}->{10-11}->{11-12}->{12-13}->{13-14}',
+
+    'my_graph': '0->1, 0->2, {1,2}->3',
 }
 
 
@@ -525,9 +527,9 @@ class Chemical(gym.Env):
 
     def generate_masks(self):
         mask = self.adjacency_matrix.unsqueeze(-1)
-        print("1:", mask)
+        # print("1:", mask)
         mask = mask.repeat(1, 1, self.num_colors)
-        print("2:", mask)
+        # print("2:", mask)
 
         self.mask = mask.view(self.adjacency_matrix.size(0), -1)
 
@@ -567,11 +569,24 @@ class Chemical(gym.Env):
         self.object_to_shape_target = [torch.zeros(self.num_shapes, device=self.device)
                                        for _ in range(self.num_objects)]
 
-        # Sample color for root node randomly
-        root_color = np.random.randint(0, self.num_colors)
-        self.object_to_color[0][root_color] = 1
-        root_shape = np.random.randint(0, self.num_shapes)
-        self.object_to_shape[0][root_shape] = 1
+        for i in range(self.num_objects):
+            self.object_to_color[i][0] = 1  # Set color to red (index 0)
+            self.object_to_shape[i][0] = 1  # Set shape to circle (index 0)
+
+        self.object_to_color_target[0][0] = 1  # Red color
+        self.object_to_shape_target[0][2] = 1  # Square shape
+        self.object_to_color_target[1][1] = 1  # Blue color
+        self.object_to_shape_target[1][0] = 1  # Circle shape
+        self.object_to_color_target[2][2] = 1  # Green color
+        self.object_to_shape_target[2][2] = 1  # Square shape
+        self.object_to_color_target[3][5] = 1  # Yellow color
+        self.object_to_shape_target[3][3] = 1  # Diamond shape
+
+        # print('self.object_to_shape_target:', self.object_to_shape_target)
+        # print('self.object_to_color_target:', self.object_to_color_target)
+
+        # print('self.object_to_color:', self.object_to_color)
+        # print('self.object_to_shape:', self.object_to_shape)
 
         # Sample color for other nodes using MLPs
         self.sample_variables(0, do_everything=True)
@@ -645,6 +660,7 @@ class Chemical(gym.Env):
         """
         reached = [idx]
         for v in range(idx + 1, self.num_objects):
+            
             if do_everything or self.is_reachable(v, reached):
                 reached.append(v)
 
@@ -667,6 +683,9 @@ class Chemical(gym.Env):
 
                 self.object_to_color[v] = out_color.squeeze(0)
                 self.object_to_shape[v] = out_shape.squeeze(0)
+                # print(f"Input for MLP (Combined): {inp_combined}")
+                # out_combined = self.mlps[v](inp_combined, mask_combined)
+                # print(f"Output from MLP (Combined): {out_combined}")
 
     def sample_variables_target(self, idx, do_everything=False):
             """
@@ -698,6 +717,9 @@ class Chemical(gym.Env):
                     self.object_to_shape_target[v] = out_shape.squeeze(0)
 
     def translate(self, obj_id, color_id, shape_id):
+        # print(f"Translating Object {obj_id} to Color ID {color_id} and Shape ID {shape_id}")
+        # print(f"Updated color: {self.object_to_color[obj_id]}, Updated shape: {self.object_to_shape[obj_id]}")
+
         """Translate object properties.
 
         Args:
@@ -758,35 +780,37 @@ class Chemical(gym.Env):
         matches = 0.
         for i, ((c1, c2), (s1, s2)) in enumerate(zip(zip(self.object_to_color, self.object_to_color_target), 
                                               zip(self.object_to_shape, self.object_to_shape_target))):
+            # print("i:", i)
             # print("c1:", c1)
             # print("c2:", c2)
             # print("s1:", s1)
             # print("s2:", s2)
-            # print("i:", i)
+            print(f"Object {i}: Color - {c1}, Target Color - {c2}, Shape - {s1}, Target Shape - {s2}")
+
             # if c1
             # if c1 == c2 & s1 == s2
 
-            if i not in self.match_type:
-                continue
+            # if i not in self.match_type:
+            #     continue
             if (c1 == c2).all() & (s1 == s2).all():
-                if i == 0:
-                    prop = 'r'
-                elif i == 1:
-                    prop = 'e'
-                elif i == 2:
-                    prop = 'j'
-                elif i == 3:
-                    prop = 'p'
+                prop = 'r' if i == 0 else 'e' if i == 1 else 'j' if i == 2 else 'p' if i == 3 else 'aa'
                 matches += 1
+                print(f"Match found for Object {i}, prop is {prop}")
             else:
-                prop = 'a'
+                prop = 'aa'
             
-        print('prop is', prop)
-
+        # Print the current proposition
+            print(f'Current proposition is: {prop}')
+        
                 
-        rm = RewardMachine('./reward_machines/rm.txt')
-        u2 = rm.get_next_state(u1,prop)
-        reward = rm.get_reward(u1, u2)
+            rm = RewardMachine('./reward_machines/rm.txt')
+            u2 = rm.get_next_state(u1,prop)
+            
+            print("u2 in env:", u2)
+            reward = rm.get_reward(u1, u2)
+            print('reward in env', reward)
+            print('u1 in env:', u1)
+            u1 = u2
         num_needed_match = len(self.match_type)
         # if self.dense_reward:
         #     reward = matches / num_needed_match
