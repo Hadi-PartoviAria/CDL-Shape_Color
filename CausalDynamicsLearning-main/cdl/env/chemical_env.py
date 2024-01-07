@@ -336,6 +336,8 @@ class Chemical(gym.Env):
         self.num_actions = self.num_objects * (self.num_colors + self.num_shapes)
         self.num_target_interventions = chemical_env_params.num_target_interventions
         self.max_steps = chemical_env_params.max_steps
+        # print('self.max_steps in chem env:', self.max_steps)
+        # exit()
 
         self.mlps = []
         self.mask = None
@@ -785,7 +787,7 @@ class Chemical(gym.Env):
             # print("c2:", c2)
             # print("s1:", s1)
             # print("s2:", s2)
-            print(f"Object {i}: Color - {c1}, Target Color - {c2}, Shape - {s1}, Target Shape - {s2}")
+            # print(f"Object {i}: Color - {c1}, Target Color - {c2}, Shape - {s1}, Target Shape - {s2}")
 
             # if c1
             # if c1 == c2 & s1 == s2
@@ -795,21 +797,21 @@ class Chemical(gym.Env):
             if (c1 == c2).all() & (s1 == s2).all():
                 prop = 'r' if i == 0 else 'e' if i == 1 else 'j' if i == 2 else 'p' if i == 3 else 'aa'
                 matches += 1
-                print(f"Match found for Object {i}, prop is {prop}")
+                # print(f"Match found for Object {i}, prop is {prop}")
             else:
                 prop = 'aa'
             
         # Print the current proposition
-            print(f'Current proposition is: {prop}')
+            # print(f'Current proposition is: {prop}')
         
                 
             rm = RewardMachine('./reward_machines/rm.txt')
             u2 = rm.get_next_state(u1,prop)
             
-            print("u2 in env:", u2)
+            # print("u2 in env:", u2)
             reward = rm.get_reward(u1, u2)
-            print('reward in env', reward)
-            print('u1 in env:', u1)
+            # print('reward in env', reward)
+            # print('u1 in env:', u1)
             u1 = u2
         num_needed_match = len(self.match_type)
         # if self.dense_reward:
@@ -820,7 +822,6 @@ class Chemical(gym.Env):
 
         self.cur_step += 1
 
-        done = self.cur_step >= self.max_steps
-
+        done = self.cur_step >= (self.max_steps + 0)
         state = self.get_state()
         return state, reward, done, info, u2

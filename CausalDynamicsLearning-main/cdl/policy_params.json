@@ -1,7 +1,7 @@
 {
     "info": "chemical_collider_dynamics_cmi",
     "obs_keys": ["obj0", "obj1", "obj2", "obj3"],
-    "goal_keys": [],
+    "goal_keys": ["target_obj0", "target_obj1", "target_obj2", "target_obj3"],
     "seed": 0,
     "cuda_id": 0,
     "env_params": {
@@ -57,18 +57,18 @@
     },
     "training_params": {
         "inference_algo": "cmi",
-        "rl_algo": "random",
-        "load_inference": "",
+        "rl_algo": "model_based",
+        "load_inference": "Desktop/CausalDynamicsLearning-main_shape_color/CausalDynamicsLearning-main/rslts/dynamics/chemical_collider_dynamics_cmi_2024_01_05_14_51_15/trained_models",
         "load_model_based": "",
         "load_policy": "",
         "load_replay_buffer": "",
-        "total_steps": 500000,
-        "init_steps": 10000,
+        "total_steps": 10000,
+        "init_steps": 1000,
         "collect_env_step": true,
         "inference_gradient_steps": 1,
         "policy_gradient_steps": 0,
-        "saving_freq": 5000,
-        "plot_freq": 10000,
+        "saving_freq": 500,
+        "plot_freq": 100,
         "replay_buffer_params": {
             "capacity": 500000,
             "max_sample_time": 128,

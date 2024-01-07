@@ -1,6 +1,6 @@
 import os
 import numpy as np
-
+import pandas as pd
 import torch
 from torch.utils.tensorboard import SummaryWriter
 np.set_printoptions(precision=3, suppress=True)
@@ -25,6 +25,7 @@ from utils.scripted_policy import get_scripted_policy, get_is_demo
 
 from env.chemical_env import Chemical
 from reward_machines.reward_machine import RewardMachine
+import matplotlib.pyplot as plt
 
 
 def train(params):
@@ -42,6 +43,8 @@ def train(params):
     num_env = params.env_params.num_env
     is_vecenv = num_env > 1
     env = get_env(params, render)
+    # print('path to params:', params.rslts_dir)
+    # exit()
     if isinstance(env, Chemical):
         torch.save(env.get_save_information(), os.path.join(params.rslts_dir, "chemical_env_params"))
 
@@ -113,9 +116,8 @@ def train(params):
 
 
 
-
     rm = RewardMachine('./reward_machines/rm.txt')
-    u0 = rm.get_initial_state()
+    u1 = rm.get_initial_state()
     # print(u0)
 
 
@@ -123,14 +125,22 @@ def train(params):
     # rm.get_next_state()
     
 
-
+    ################################
+    # Initialize the list to hold the rewards of each episode
+    episode_rewards = []
+    all_rolling_avg_rewards = []
+    environment_reward = []
+    env_reward = 0
+    ################################
+    flag = 0
+    # while flag != 1:
     for step in range(start_step, total_steps):
         is_init_stage = step < training_params.init_steps
-        # print("{}/{}, init_stage: {}".format(step + 1, total_steps, is_init_stage))
+        print("{}/{}, init_stage: {}".format(step + 1, total_steps, is_init_stage))
         loss_details = {"inference": [],
                         "inference_eval": [],
                         "policy": []}
-        u1 = u0
+        # u1 = u0
         # env.step()
         # env interaction and transition saving
         if collect_env_step:
@@ -150,8 +160,14 @@ def train(params):
                     episode_reward[i] = 0
                     episode_step[i] = 0
                     episode_num += 1
-            elif not is_vecenv and done:
+            elif not is_vecenv and done or env_reward == 1:
+                ########################################
+                episode_rewards.append(episode_reward)
+                #########################################
                 obs = env.reset()
+                u1 = rm.get_initial_state()
+                print("U1_res:", u1)
+
                 if rl_algo == "hippo":
                     policy.reset()
                 scripted_policy.reset(obs)
@@ -163,6 +179,9 @@ def train(params):
                             writer.add_scalar("policy_stat/success", float(success), episode_num)
                     else:
                         writer.add_scalar("policy_stat/episode_reward", episode_reward, episode_num)
+                    ##########################################
+                    writer.add_scalar('training/episode_reward', episode_reward, episode_num)
+                    ##########################################
                 is_train = np.random.rand() < train_prop
                 is_demo = get_is_demo(step, params)
                 episode_reward = 0
@@ -187,10 +206,13 @@ def train(params):
                 else:
                     action_policy = scripted_policy if is_demo else policy
                     action = action_policy.act(obs)
-#####################################################################################################################
+            #####################################################################################################################
             next_obs, env_reward, done, info, u2 = env.step(action, u1)
-            print("reward!!!!!!!!!!!!:", env_reward)
-            print("U2!!!!!!!!!!!!:", u2)
+            # print("reward!!!!!!!!!!!!:", env_reward)
+            print("U1!!!!!!:", u1)
+            print("U2!!!!!!:", u2)
+            
+            # print('done:', done)
             if is_task_learning and not is_vecenv:
                 success = success or info["success"]
 
@@ -198,6 +220,10 @@ def train(params):
             episode_reward += env_reward if is_task_learning else inference_reward
             episode_step += 1
 
+
+
+           
+            environment_reward.append(env_reward)
             # is_train: if the transition is training data or evaluation data for inference_cmi
             replay_buffer.add(obs, action, env_reward, next_obs, done, is_train, info)
 
@@ -206,6 +232,22 @@ def train(params):
                 policy.update_trajectory_list(obs, action, done, next_obs, info)
 
             obs = next_obs
+            # if done:  # Assuming 'done' indicates the end of an episode
+            #     if len(episode_rewards) >= 20:  # Check if you have enough data points
+            #         rolling_avg_reward = np.mean(episode_rewards[-20:])  # Calculate rolling average
+            #     else:
+            #         rolling_avg_reward = np.mean(episode_rewards)  # Calculate average of what you have
+            #     all_rolling_avg_rewards.append(rolling_avg_reward if not np.isnan(rolling_avg_reward) else 0)
+
+            
+            
+            if env_reward == 1:
+                print(f"Terminating training as env_reward is 1 at step {step}")
+                # obs = env.reset()
+                # u2 = rm.get_initial_state()
+
+                # flag = 1
+        
 
         # training and logging
         if is_init_stage:
@@ -219,23 +261,29 @@ def train(params):
                     replay_buffer.sample_inference(inference_params.batch_size, "train")
                 loss_detail = inference.update(obs_batch, actions_batch, next_obses_batch)
                 loss_details["inference"].append(loss_detail)
-
+            
             inference.eval()
             if (step + 1) % cmi_params.eval_freq == 0:
                 if use_cmi:
                     # if do not update inference, there is no need to update inference eval mask
                     inference.reset_causal_graph_eval()
+                    # print("hi1")
                     for _ in range(cmi_params.eval_steps):
+                        # print("This:", cmi_params.eval_batch_size)
                         obs_batch, actions_batch, next_obses_batch = \
                             replay_buffer.sample_inference(cmi_params.eval_batch_size, use_part="eval")
+                        # print('hi1.5')
                         eval_pred_loss = inference.update_mask(obs_batch, actions_batch, next_obses_batch)
+                        # print("hi2")
                         loss_details["inference_eval"].append(eval_pred_loss)
+                        # print("hi3")
                 else:
+                    # print('Hi4')
                     obs_batch, actions_batch, next_obses_batch = \
                         replay_buffer.sample_inference(cmi_params.eval_batch_size, use_part="eval")
                     loss_detail = inference.update(obs_batch, actions_batch, next_obses_batch, eval=True)
                     loss_details["inference_eval"].append(loss_detail)
-
+            # print('Hi')
         if policy_gradient_steps > 0 and rl_algo != "random":
             policy.train()
             if rl_algo in ["ppo", "hippo"]:
@@ -252,7 +300,7 @@ def train(params):
                         replay_buffer.update_priorties(idxes_batch, loss_detail["priority"])
                     loss_details["policy"].append(loss_detail)
             policy.eval()
-
+        
         if writer is not None:
             for module_name, module_loss_detail in loss_details.items():
                 if not module_loss_detail:
@@ -261,7 +309,7 @@ def train(params):
                 if isinstance(module_loss_detail, list):
                     keys = set().union(*[dic.keys() for dic in module_loss_detail])
                     module_loss_detail = {k: [dic[k].item() for dic in module_loss_detail if k in dic]
-                                          for k in keys if k not in ["priority"]}
+                                        for k in keys if k not in ["priority"]}
                 for loss_name, loss_values in module_loss_detail.items():
                     writer.add_scalar("{}/{}".format(module_name, loss_name), np.mean(loss_values), step)
 
@@ -273,7 +321,25 @@ def train(params):
                 inference.save(os.path.join(model_dir, "inference_{}".format(step + 1)))
             if policy_gradient_steps > 0:
                 policy.save(os.path.join(model_dir, "policy_{}".format(step + 1)))
-        u0 = u2
+        u1 = u2
+
+        rolling_avg_rewards = np.convolve(episode_rewards, np.ones(20)/20, mode='valid')
+
+        # print(episode_rewards)
+        plt.plot(rolling_avg_rewards)
+        plt.xlabel('E')
+        plt.ylabel('Reward')
+        plt.title('Training Curve')
+        plt.savefig('/home/zhexu/Desktop/CausalDynamicsLearning-main_shape_color/CausalDynamicsLearning-main/cdl/plot.png')
+        
+    print("All Rolling Average Rewards:", all_rolling_avg_rewards)
+    print("ep_num:", episode_num)
+
+    cumulative_rolling_avg = np.cumsum(all_rolling_avg_rewards)  # Cumulative sum of rolling averages
+    print("Cumulative Rolling Average Rewards:", cumulative_rolling_avg)
+
+    df = pd.DataFrame({'Env Reward': environment_reward})
+    df.to_excel('/home/zhexu/Desktop/CausalDynamicsLearning-main_shape_color/CausalDynamicsLearning-main/cdl/result.xlsx', index=False)
 
 if __name__ == "__main__":
     params = TrainingParams(training_params_fname="policy_params.json", train=True)

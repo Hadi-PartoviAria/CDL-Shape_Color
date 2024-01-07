@@ -135,21 +135,34 @@ class ReplayBuffer:
         return not_at_episode_end and not_newly_added
 
     def sample_idx(self, batch_size, n_step, type, use_part="all"):
+        # print("batch in samp idx:", batch_size)
+        # print("n_step in samp idx:", n_step)
         idxes = []
         for _ in range(batch_size):
+            # print('Fuck', _)
             while True:
+                # print('before idx')
+                # print('nnn_step:', n_step)
+                # print('capa:', self.capacity)
                 idx = np.random.randint(self.capacity if self.full else (self.idx - n_step))
+                # print('after idx')
+                
                 if self.valid_idx(idx, n_step, type, use_part):
                     idxes.append(idx)
-
+                    # print('444')
                     if type == "inference" and use_part != "eval":
+                        # print("111")
                         self.inference_sample_times[idx] += 1
                     elif type == "policy":
+                        # print("222")
+
                         self.policy_sample_times[idx] += 1
                     else:
+                        # print("333")
                         self.model_based_sample_times[idx] += 1
 
                     break
+                
         return np.array(idxes)
 
     def construct_transition(self, idxes, n_step, type):
@@ -181,18 +194,24 @@ class ReplayBuffer:
         assert type in ["inference", "model_based", "encoder"], "Unrecognized sample type: {}".format(type)
 
         if type == "inference":
+            # print("infer")
             n_step = self.n_inference_pred_step
         elif type in ["model_based", "encoder"]:
             n_step = 1
         else:
             raise NotImplementedError
-
+        # print("not")
         idxes = self.sample_idx(batch_size, n_step, type, use_part)
+        # print("not1")
         obses, actions, rewards, dones, next_obses = self.construct_transition(idxes, n_step, type)
+        # print("not2")
         return obses, actions, rewards, dones, next_obses, idxes
 
     def sample_inference(self, batch_size, use_part="all"):
+        # print("here in sample")
         obses, actions, _, _, next_obses, _ = self.sample(batch_size, "inference", use_part)
+        # print("bb",batch_size)
+
         return obses, actions, next_obses
 
     def sample_policy(self, batch_size):
